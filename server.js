@@ -1,41 +1,30 @@
 const express = require("express");
 const cors = require("cors");
-const db = require("./db");
+const bodyParser = require("body-parser");
+const fs = require("fs");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors()); // Tüm originlere izin
+app.use(bodyParser.json());
 
-// Site kontrol endpoint
+let licenses = {};
+// Lisansları JSON dosyasından yükle
+if (fs.existsSync("licenses.json")) {
+  licenses = JSON.parse(fs.readFileSync("licenses.json"));
+}
+
 app.post("/check", (req, res) => {
-  const { url } = req.body;
-  db.get("SELECT * FROM licenses WHERE url = ?", [url], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.json({
-      licenseStatus: "unknown",
-      licenseProvider: "Bilinmiyor",
-      riskLevel: "medium"
-    });
-    res.json(row);
-  });
+  const url = req.body.url;
+  if (!url) return res.status(400).json({ error: "URL girilmedi" });
+
+  const licenseData = licenses[url] || {
+    licenseStatus: "valid",
+    licenseProvider: "Resmi Sağlayıcı",
+    riskLevel: "low"
+  };
+
+  res.json(licenseData);
 });
 
-// Admin panelinden site ekleme/güncelleme endpoint
-app.post("/add-license", (req, res) => {
-  const { url, licenseStatus, licenseProvider, riskLevel } = req.body;
-
-  if (!url || !licenseStatus || !licenseProvider || !riskLevel) {
-    return res.status(400).json({ error: "Tüm alanlar doldurulmalı!" });
-  }
-
-  db.run(
-    `INSERT OR REPLACE INTO licenses (url, licenseStatus, licenseProvider, riskLevel) VALUES (?, ?, ?, ?)`,
-    [url, licenseStatus, licenseProvider, riskLevel],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, message: `${url} başarıyla eklendi/güncellendi!` });
-    }
-  );
-});
-
-app.listen(5000, () => console.log("Backend çalışıyor: http://localhost:5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Backend Render’da çalışıyor: http://localhost:${PORT}`));
